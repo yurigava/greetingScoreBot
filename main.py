@@ -23,7 +23,12 @@ import re
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
-starEmoji='🌟'
+starEmojis = [None] * 5
+starEmojis[4]=3*'🌟'
+starEmojis[3]=2*'🌟'
+starEmojis[2]='🌟'
+starEmojis[1]='⭐️'
+starEmojis[0]='✨'
 maxStars = 5
 
 # Enable logging
@@ -33,21 +38,27 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def treatRoutine(update, context, dictName, dadoName) -> None:
+def treatRoutine(update, context, thisName, otherName) -> None:
+    dictName = f'{thisName}Dict'
+    dadoName = f'{thisName}Dado'
+    otherDictName = f'{otherName}Dict'
+    otherDadoName = f'{otherName}Dado'
     if (dictName not in context.bot_data):
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
         logger.info(f'Resetting {dictName}')
     if(update.message.from_user.username == 'P4cvaz' and not context.bot_data[dadoName]):
+        context.bot_data[otherDictName] = collections.OrderedDict()
+        context.bot_data[otherDadoName] = False
         context.bot_data[dadoName] = True
         logger.info(dadoName)
-        for userId in context.bot_data[dictName]:
-            context.bot_data[dictName][userId].reply_text((maxStars - (len(context.bot_data[dictName]) - 1))*starEmoji, quote=True)
+        for index, userId in enumerate(context.bot_data[dictName]):
+            context.bot_data[dictName][userId].reply_text(starEmojis[maxStars - index - 1], quote=True)
     else:
         if(update.message.from_user.id not in context.bot_data[dictName]):
             context.bot_data[dictName][update.message.from_user.id] = update.message
             if(context.bot_data[dadoName]):
-                update.message.reply_text((maxStars - (len(context.bot_data[dictName]) - 1))*starEmoji, quote=True)
+                update.message.reply_text(starEmojis[maxStars - len(context.bot_data[dictName]) - 1], quote=True)
     if(context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars):
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
