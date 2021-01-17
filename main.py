@@ -17,9 +17,14 @@ bot.
 
 import logging
 import setupInfo
+import collections
+import re
 
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
+
+starEmoji='🌟'
+maxStars = 5
 
 # Enable logging
 logging.basicConfig(
@@ -28,6 +33,24 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def treatRoutine(update, context, dictName, dadoName) -> None:
+    if (dictName not in context.bot_data):
+        context.bot_data[dictName] = collections.OrderedDict()
+        context.bot_data[dadoName] = False
+        logger.info(f'Resetting {dictName}')
+    if(update.message.from_user.username == 'P4cvaz' and not context.bot_data[dadoName]):
+        context.bot_data[dadoName] = True
+        logger.info(dadoName)
+        for userId in context.bot_data[dictName]:
+            context.bot_data[dictName][userId].reply_text((maxStars - (len(context.bot_data[dictName]) - 1))*starEmoji, quote=True)
+    else:
+        if(update.message.from_user.id not in context.bot_data[dictName]):
+            context.bot_data[dictName][update.message.from_user.id] = update.message
+            if(context.bot_data[dadoName]):
+                update.message.reply_text((maxStars - (len(context.bot_data[dictName]) - 1))*starEmoji, quote=True)
+    if(context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars):
+        context.bot_data[dictName] = collections.OrderedDict()
+        context.bot_data[dadoName] = False
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
@@ -41,10 +64,13 @@ def help_command(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Help!')
 
 
-def echo(update: Update, context: CallbackContext) -> None:
-    """Echo the user message."""
-    update.message.reply_text(update.message.text)
+def bomdia(update: Update, context: CallbackContext) -> None:
+    """Treat Bom Dias."""
+    treatRoutine(update, context, f'bomDiaDict{update.message.chat.id}', f'bomDiaDado{update.message.chat.id}')
 
+def boanoite(update: Update, context: CallbackContext) -> None:
+    """Treat Boa Noites."""
+    treatRoutine(update, context, f'boaNoiteDict{update.message.chat.id}', f'boaNoiteDado{update.message.chat.id}')
 
 def main():
     """Start the bot."""
@@ -61,7 +87,8 @@ def main():
     dispatcher.add_handler(CommandHandler("help", help_command))
 
     # on noncommand i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, echo))
+    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+m+ +d+i+a+', re.IGNORECASE)) & ~Filters.command, bomdia))
+    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+a+ +n+o+i+t+e+', re.IGNORECASE)) & ~Filters.command, boanoite))
 
     # Start the Bot
     updater.start_polling()
