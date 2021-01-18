@@ -19,16 +19,18 @@ import logging
 import setupInfo
 import collections
 import re
+import datetime as dtime
+from datetime import datetime
 
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 starEmojis = [None] * 5
-starEmojis[4]=3*'🌟'
-starEmojis[3]=2*'🌟'
-starEmojis[2]='🌟'
-starEmojis[1]='⭐️'
-starEmojis[0]='✨'
+starEmojis[4]=4*'🌟'
+starEmojis[3]=3*'🌟'
+starEmojis[2]=2*'🌟'
+starEmojis[1]='🌟'
+starEmojis[0]='⭐️'
 maxStars = 5
 
 # Enable logging
@@ -38,11 +40,19 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
+def isCurrentTimeInRange(start, end):
+    currentTime = datetime.now().time()
+    if start <= end:
+        return start <= currentTime <= end
+    else:
+        return start <= currentTime or currentTime <= end
+
+
 def treatRoutine(update, context, thisName, otherName) -> None:
-    dictName = f'{thisName}Dict'
-    dadoName = f'{thisName}Dado'
-    otherDictName = f'{otherName}Dict'
-    otherDadoName = f'{otherName}Dado'
+    dictName = f'{thisName}{update.message.chat.id}Dict'
+    dadoName = f'{thisName}{update.message.chat.id}Dado'
+    otherDictName = f'{otherName}{update.message.chat.id}Dict'
+    otherDadoName = f'{otherName}{update.message.chat.id}Dado'
     if (dictName not in context.bot_data):
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
@@ -54,11 +64,13 @@ def treatRoutine(update, context, thisName, otherName) -> None:
         logger.info(dadoName)
         for index, userId in enumerate(context.bot_data[dictName]):
             context.bot_data[dictName][userId].reply_text(starEmojis[maxStars - index - 1], quote=True)
-    else:
+            logger.info(f'{thisName}{maxStars - index - 1}')
+    elif(update.message.from_user.username != 'P4cvaz'):
         if(update.message.from_user.id not in context.bot_data[dictName]):
             context.bot_data[dictName][update.message.from_user.id] = update.message
             if(context.bot_data[dadoName]):
-                update.message.reply_text(starEmojis[maxStars - len(context.bot_data[dictName]) - 1], quote=True)
+                update.message.reply_text(starEmojis[maxStars - len(context.bot_data[dictName])], quote=True)
+                logger.info(f'{thisName}{maxStars - len(context.bot_data[dictName])}')
     if(context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars):
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
@@ -77,11 +89,13 @@ def help_command(update: Update, context: CallbackContext) -> None:
 
 def bomdia(update: Update, context: CallbackContext) -> None:
     """Treat Bom Dias."""
-    treatRoutine(update, context, f'bomDiaDict{update.message.chat.id}', f'bomDiaDado{update.message.chat.id}')
+    if isCurrentTimeInRange(dtime.time(4,0,0), dtime.time(12,0,0)):
+        treatRoutine(update, context, 'bomdia', 'boanoite')
 
 def boanoite(update: Update, context: CallbackContext) -> None:
     """Treat Boa Noites."""
-    treatRoutine(update, context, f'boaNoiteDict{update.message.chat.id}', f'boaNoiteDado{update.message.chat.id}')
+    if isCurrentTimeInRange(dtime.time(17,0,0), dtime.time(4,0,0)):
+        treatRoutine(update, context, 'boanoite', 'bomdia')
 
 def main():
     """Start the bot."""
