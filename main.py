@@ -22,11 +22,14 @@ import re
 import os.path
 import datetime as dtime
 from datetime import datetime
+import pytz
 import pickle
+from telegram.utils.helpers import mention_markdown
 
-from telegram import Update
+from telegram import Update, constants
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
+heartEmoji = '❤'
 starEmojis = [None] * 5
 starEmojis[4] = 5*'🌟'
 starEmojis[3] = 4*'🌟'
@@ -34,8 +37,11 @@ starEmojis[2] = 3*'🌟'
 starEmojis[1] = 2*'🌟'
 starEmojis[0] = '🌟'
 maxStars = 5
-fileName = 'startCount.pickle'
+starCountFile = 'starCount.pickle'
+userNamesFile = 'userFile.pickle'
 dataBase = 'dataBase'
+userMap = 'userMap'
+chatIds = 'chatIds'
 
 # Enable logging
 logging.basicConfig(
@@ -53,16 +59,16 @@ def isCurrentTimeInRange(startTime, end):
         return startTime <= currentTime or currentTime <= end
 
 
-def loadPickleFile():
-    starCount = {}
+def loadPickleFile(fileName):
+    loadDataBase = {}
     if os.path.isfile(fileName):
         with open(fileName, 'rb') as starCount:
-            starCount = pickle.load(starCount)
-    return starCount
+            loadDataBase = pickle.load(starCount)
+    return loadDataBase
 
 
 def saveToPickleFile(starCountDict):
-    with open(fileName, 'wb') as starCount:
+    with open(starCountFile, 'wb') as starCount:
         pickle.dump(starCountDict, starCount)
 
 
@@ -74,6 +80,13 @@ def addStarsToUser(starCountDictionary, starsNumber, user):
     saveToPickleFile(starCountDictionary)
 
 
+def addUserToMap(userMapDict, user):
+    if user.id not in userMapDict:
+        userMapDict[user.id] = user.first_name
+        with open(userNamesFile, 'wb') as usersFile:
+            pickle.dump(userMapDict, usersFile)
+
+
 def treatRoutine(update, context, thisName, otherName) -> None:
     dictName = f'{thisName}{update.message.chat.id}Dict'
     dadoName = f'{thisName}{update.message.chat.id}Dado'
@@ -82,6 +95,7 @@ def treatRoutine(update, context, thisName, otherName) -> None:
     if dictName not in context.bot_data:
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
+        context.bot_data[chatIds].add(update.message.chat.id)
         logger.info(f'Resetting {dictName}')
     if update.message.from_user.username == 'P4cvaz' and not context.bot_data[dadoName]:
         context.bot_data[otherDictName] = collections.OrderedDict()
@@ -95,7 +109,8 @@ def treatRoutine(update, context, thisName, otherName) -> None:
                 userStarsIndex = maxStars - len(context.bot_data[dictName])
                 update.message.reply_text(starEmojis[userStarsIndex], quote=True)
                 logger.info(f'{thisName} {userStarsIndex + 1}')
-                addStarsToUser(context.bot_data[dataBase], userStarsIndex, update.message.from_user.name)
+                addStarsToUser(context.bot_data[dataBase], userStarsIndex + 1, update.message.from_user.id)
+                addUserToMap(context.bot_data[userMap], update.message.from_user)
     if context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars:
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
@@ -109,13 +124,26 @@ def start(update: Update, context: CallbackContext) -> None:
     update.message.reply_text('Hi!')
 
 
-def help_command(update: Update, context: CallbackContext) -> None:
+def get_placar_markdown(context):
     """Send a message when the command /help is issued."""
     placarAtual = 'O placar atual é:\n'
     orderedItems = sorted(context.bot_data[dataBase].items(), key=lambda x: x[1], reverse=True)
-    for entry in orderedItems:
-        placarAtual += f'{entry[0]}: {entry[1]}\n'
-    update.message.reply_text(placarAtual)
+    for index, entry in enumerate(orderedItems):
+        userMention = mention_markdown(entry[0], context.bot_data[userMap][entry[0]])
+        placarAtual += f'{userMention}: {entry[1]} {starEmojis[0]} {(maxStars - index)*heartEmoji} \n'
+    return placarAtual
+
+
+def mostra_placar_agendado(context: CallbackContext) -> None:
+    logger.info("Agendado Rodando")
+    for chatId in context.bot_data[chatIds]:
+        placarAtual = get_placar_markdown(context)
+        context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
+
+
+def mostra_placar(update: Update, context: CallbackContext) -> None:
+    placarAtual = get_placar_markdown(context)
+    update.message.reply_markdown_v2(placarAtual)
 
 
 def bomdia(update: Update, context: CallbackContext) -> None:
@@ -139,16 +167,19 @@ def main():
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
-    dispatcher.bot_data[dataBase] = loadPickleFile()
+    dispatcher.bot_data[chatIds] = set()
+    dispatcher.bot_data[dataBase] = loadPickleFile(starCountFile)
+    dispatcher.bot_data[userMap] = loadPickleFile(userNamesFile)
 
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
-    dispatcher.add_handler(CommandHandler("help", help_command))
+    dispatcher.add_handler(CommandHandler("mostraplacar", mostra_placar))
 
     # on noncommand i.e message - echo the message on Telegram
     dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+m+ +d+i+a+', re.IGNORECASE)) & ~Filters.command, bomdia))
     dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+a+ +n+o+i+t+e+', re.IGNORECASE)) & ~Filters.command, boanoite))
 
+    updater.job_queue.run_daily(mostra_placar_agendado, dtime.time(13, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
     # Start the Bot
     updater.start_polling()
 
