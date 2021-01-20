@@ -1,1 +1,5 @@
 setupInfo.py
+.idea
+__pycache__/
+log.txt
+startCount.pickle

@@ -19,19 +19,23 @@ import logging
 import setupInfo
 import collections
 import re
+import os.path
 import datetime as dtime
 from datetime import datetime
+import pickle
 
 from telegram import Update
 from telegram.ext import Updater, CommandHandler, MessageHandler, Filters, CallbackContext
 
 starEmojis = [None] * 5
-starEmojis[4]=4*'🌟'
-starEmojis[3]=3*'🌟'
-starEmojis[2]=2*'🌟'
-starEmojis[1]='🌟'
-starEmojis[0]='⭐️'
+starEmojis[4] = 5*'🌟'
+starEmojis[3] = 4*'🌟'
+starEmojis[2] = 3*'🌟'
+starEmojis[1] = 2*'🌟'
+starEmojis[0] = '🌟'
 maxStars = 5
+fileName = 'startCount.pickle'
+dataBase = 'dataBase'
 
 # Enable logging
 logging.basicConfig(
@@ -40,12 +44,34 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-def isCurrentTimeInRange(start, end):
+
+def isCurrentTimeInRange(startTime, end):
     currentTime = datetime.now().time()
-    if start <= end:
-        return start <= currentTime <= end
+    if startTime <= end:
+        return startTime <= currentTime <= end
     else:
-        return start <= currentTime or currentTime <= end
+        return startTime <= currentTime or currentTime <= end
+
+
+def loadPickleFile():
+    starCount = {}
+    if os.path.isfile(fileName):
+        with open(fileName, 'rb') as starCount:
+            starCount = pickle.load(starCount)
+    return starCount
+
+
+def saveToPickleFile(starCountDict):
+    with open(fileName, 'wb') as starCount:
+        pickle.dump(starCountDict, starCount)
+
+
+def addStarsToUser(starCountDictionary, starsNumber, user):
+    if user in starCountDictionary:
+        starCountDictionary[user] += starsNumber
+    else:
+        starCountDictionary[user] = starsNumber
+    saveToPickleFile(starCountDictionary)
 
 
 def treatRoutine(update, context, thisName, otherName) -> None:
@@ -53,30 +79,31 @@ def treatRoutine(update, context, thisName, otherName) -> None:
     dadoName = f'{thisName}{update.message.chat.id}Dado'
     otherDictName = f'{otherName}{update.message.chat.id}Dict'
     otherDadoName = f'{otherName}{update.message.chat.id}Dado'
-    if (dictName not in context.bot_data):
+    if dictName not in context.bot_data:
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
         logger.info(f'Resetting {dictName}')
-    if(update.message.from_user.username == 'P4cvaz' and not context.bot_data[dadoName]):
+    if update.message.from_user.username == 'P4cvaz' and not context.bot_data[dadoName]:
         context.bot_data[otherDictName] = collections.OrderedDict()
         context.bot_data[otherDadoName] = False
         context.bot_data[dadoName] = True
         logger.info(dadoName)
-        for index, userId in enumerate(context.bot_data[dictName]):
-            context.bot_data[dictName][userId].reply_text(starEmojis[maxStars - index - 1], quote=True)
-            logger.info(f'{thisName}{maxStars - index - 1}')
-    elif(update.message.from_user.username != 'P4cvaz'):
-        if(update.message.from_user.id not in context.bot_data[dictName]):
+    elif update.message.from_user.username != 'P4cvaz' and context.bot_data[dadoName]:
+        if update.message.from_user.id not in context.bot_data[dictName]:
             context.bot_data[dictName][update.message.from_user.id] = update.message
-            if(context.bot_data[dadoName]):
-                update.message.reply_text(starEmojis[maxStars - len(context.bot_data[dictName])], quote=True)
-                logger.info(f'{thisName}{maxStars - len(context.bot_data[dictName])}')
-    if(context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars):
+            if context.bot_data[dadoName]:
+                userStarsIndex = maxStars - len(context.bot_data[dictName])
+                update.message.reply_text(starEmojis[userStarsIndex], quote=True)
+                logger.info(f'{thisName} {userStarsIndex + 1}')
+                addStarsToUser(context.bot_data[dataBase], userStarsIndex, update.message.from_user.name)
+    if context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars:
         context.bot_data[dictName] = collections.OrderedDict()
         context.bot_data[dadoName] = False
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
+
+
 def start(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /start is issued."""
     update.message.reply_text('Hi!')
@@ -84,18 +111,24 @@ def start(update: Update, context: CallbackContext) -> None:
 
 def help_command(update: Update, context: CallbackContext) -> None:
     """Send a message when the command /help is issued."""
-    update.message.reply_text('Help!')
+    placarAtual = 'O placar atual é:\n'
+    orderedItems = sorted(context.bot_data[dataBase].items(), key=lambda x: x[1], reverse=True)
+    for entry in orderedItems:
+        placarAtual += f'{entry[0]}: {entry[1]}\n'
+    update.message.reply_text(placarAtual)
 
 
 def bomdia(update: Update, context: CallbackContext) -> None:
     """Treat Bom Dias."""
-    if isCurrentTimeInRange(dtime.time(4,0,0), dtime.time(12,0,0)):
+    if isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0)):
         treatRoutine(update, context, 'bomdia', 'boanoite')
+
 
 def boanoite(update: Update, context: CallbackContext) -> None:
     """Treat Boa Noites."""
-    if isCurrentTimeInRange(dtime.time(17,0,0), dtime.time(4,0,0)):
+    if isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0)):
         treatRoutine(update, context, 'boanoite', 'bomdia')
+
 
 def main():
     """Start the bot."""
@@ -106,6 +139,7 @@ def main():
 
     # Get the dispatcher to register handlers
     dispatcher = updater.dispatcher
+    dispatcher.bot_data[dataBase] = loadPickleFile()
 
     # on different commands - answer in Telegram
     dispatcher.add_handler(CommandHandler("start", start))
