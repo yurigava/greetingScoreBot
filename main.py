@@ -22,6 +22,7 @@ import re
 import os.path
 import datetime as dtime
 from datetime import datetime
+import time
 import pytz
 import pickle
 from telegram.utils.helpers import mention_markdown
@@ -139,22 +140,32 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
     for chatId in context.bot_data[chatIds]:
         placarAtual = get_placar_markdown(context)
         context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
+    with open(f'starCount-{time.strftime("%Y%m%d")}.pickle', 'wb') as starCount:
+        pickle.dump(context.bot_data[dataBase], starCount)
+    with open(f'userMap-{time.strftime("%Y%m%d")}.pickle', 'wb') as userMapFile:
+        pickle.dump(context.bot_data[userMap], userMapFile)
+    context.bot_data[userMap] = {}
+    context.bot_data[dataBase] = {}
 
 
 def mostra_placar(update: Update, context: CallbackContext) -> None:
     placarAtual = get_placar_markdown(context)
-    update.message.reply_markdown_v2(placarAtual)
+    update.message.reply_markdown(placarAtual)
 
 
 def bomdia(update: Update, context: CallbackContext) -> None:
     """Treat Bom Dias."""
+    logger.info("Bom dia Recebido")
     if isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0)):
+        logger.info("Bom dia no horário")
         treatRoutine(update, context, 'bomdia', 'boanoite')
 
 
 def boanoite(update: Update, context: CallbackContext) -> None:
     """Treat Boa Noites."""
+    logger.info("Boa noite Recebido")
     if isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0)):
+        logger.info("Boa noite no horário")
         treatRoutine(update, context, 'boanoite', 'bomdia')
 
 
@@ -176,8 +187,8 @@ def main():
     dispatcher.add_handler(CommandHandler("mostraplacar", mostra_placar))
 
     # on noncommand i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+m+ +d+i+a+', re.IGNORECASE)) & ~Filters.command, bomdia))
-    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+a+ +n+o+i+t+e+', re.IGNORECASE)) & ~Filters.command, boanoite))
+    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+m+ ?d+i+a+', re.IGNORECASE)) & ~Filters.command, bomdia))
+    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+a+ ?n+o+i+t+e+', re.IGNORECASE)) & ~Filters.command, boanoite))
 
     updater.job_queue.run_daily(mostra_placar_agendado, dtime.time(13, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
     # Start the Bot
