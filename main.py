@@ -112,9 +112,6 @@ def treatRoutine(update, context, thisName, otherName) -> None:
                 logger.info(f'{thisName} {userStarsIndex + 1}')
                 addStarsToUser(context.bot_data[dataBase], userStarsIndex + 1, update.message.from_user.id)
                 addUserToMap(context.bot_data[userMap], update.message.from_user)
-    if context.bot_data[dadoName] and len(context.bot_data[dictName]) == maxStars:
-        context.bot_data[dictName] = collections.OrderedDict()
-        context.bot_data[dadoName] = False
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
@@ -155,17 +152,17 @@ def mostra_placar(update: Update, context: CallbackContext) -> None:
 
 def bomdia(update: Update, context: CallbackContext) -> None:
     """Treat Bom Dias."""
-    logger.info("Bom dia Recebido")
+    logger.info(f"Bom dia de {update.message.from_user.username} em {update.message.chat.title}")
     if isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0)):
-        logger.info("Bom dia no horário")
+        logger.info("Bom dia aceito")
         treatRoutine(update, context, 'bomdia', 'boanoite')
 
 
 def boanoite(update: Update, context: CallbackContext) -> None:
     """Treat Boa Noites."""
-    logger.info("Boa noite Recebido")
+    logger.info(f"Boa noite de {update.message.from_user.username} em {update.message.chat.title}")
     if isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0)):
-        logger.info("Boa noite no horário")
+        logger.info("Boa noite aceito")
         treatRoutine(update, context, 'boanoite', 'bomdia')
 
 
