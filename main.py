@@ -19,12 +19,10 @@ import logging
 import setupInfo
 import collections
 import re
-import os.path
 import datetime as dtime
 from datetime import datetime
 import time
 import pytz
-import pickle
 from telegram.utils.helpers import mention_markdown
 
 from telegram import Update, constants
@@ -99,6 +97,13 @@ def treatRoutine(update, context, thisName, otherName) -> None:
 
 # Define a few command handlers. These usually take the two arguments update and
 # context. Error handlers also receive the raised TelegramError object in error.
+def getMainUser(update: Update, context: CallbackContext) -> None:
+    if mainUserId in context.chat_data:
+        currentUser = update.message.chat.get_member(user_id=context.chat_data[mainUserId]).user
+        userMention = mention_markdown(currentUser.id, currentUser.name)
+        update.message.reply_markdown(f'O usuário principal é {userMention}')
+    else:
+        update.message.reply_text('O usuário principal não foi escolhido. Por favor use /start para escolher')
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -140,8 +145,8 @@ def get_placar_markdown(context, chatId):
     if dataBase in context.chat_data:
         orderedItems = sorted(context.chat_data[dataBase].items(), key=lambda x: x[1], reverse=True)
         for index, entry in enumerate(orderedItems):
-            mainUser = currentChat.get_member(user_id=entry[0]).user
-            userMention = mention_markdown(mainUser.id, mainUser.name)
+            currentUser = currentChat.get_member(user_id=entry[0]).user
+            userMention = mention_markdown(currentUser.id, currentUser.name)
             placarAtual += f'{userMention}: {entry[1]} {starEmoji} {(maxStars - index)*heartEmoji} \n'
 
     return placarAtual
@@ -211,6 +216,7 @@ def main():
     dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+a+ ?n+o+i+t+e+', re.IGNORECASE))
                                           & ~Filters.command, boanoite))
 
+    dispatcher.add_handler(CommandHandler('usuarioprincipal', getMainUser))
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', start)],
         states={
