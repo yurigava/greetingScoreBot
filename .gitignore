@@ -3,3 +3,4 @@ setupInfo.py
 __pycache__/
 log.txt
 *.pickle
+*.txt

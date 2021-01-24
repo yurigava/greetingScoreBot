@@ -25,7 +25,7 @@ import time
 import pytz
 from telegram.utils.helpers import mention_markdown
 
-from telegram import Update, constants
+from telegram import Update, constants, error
 from telegram.ext import (
     Updater,
     CommandHandler,
@@ -110,7 +110,8 @@ def start(update: Update, context: CallbackContext) -> int:
     """Send a message when the command /start is issued."""
     logger.info(f'User {update.message.from_user.first_name} Changing Configuration')
     context.bot_data[chatIds].add(update.message.chat.id)
-    context.chat_data[dataBase] = {}
+    if dataBase not in context.chat_data:
+        context.chat_data[dataBase] = {}
     memberCount = update.message.chat.get_members_count()
     context.chat_data[numStars] = memberCount - 1 if memberCount <= maxStars else maxStars
     update.message.reply_text('Olá, Por responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
@@ -140,16 +141,18 @@ def skipSetUser(update: Update, context: CallbackContext) -> int:
     return ConversationHandler.END
 
 
-def get_placar_markdown(context, chatId):
+def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
     """Send a message when the command /help is issued."""
-    currentChat = context.bot.get_chat(chatId)
-    placarAtual = 'O placar atual é:\n'
-    if dataBase in context.chat_data:
-        orderedItems = sorted(context.chat_data[dataBase].items(), key=lambda x: x[1], reverse=True)
+    placarAtual = ''
+    currentChatData = context.dispatcher.chat_data[chatId]
+    if dataBase in currentChatData:
+        placarAtual = 'O placar atual é:\n'
+        orderedItems = sorted(currentChatData[dataBase].items(), key=lambda x: x[1], reverse=True)
         for index, entry in enumerate(orderedItems):
-            currentUser = currentChat.get_member(user_id=entry[0]).user
+            currentUserMember = context.bot.get_chat_member(chat_id=chatId, user_id=entry[0])
+            currentUser = currentUserMember.user
             userMention = mention_markdown(currentUser.id, currentUser.name)
-            placarAtual += f'{userMention}: {entry[1]} {starEmoji} {(context.chat_data[numStars] - index)*heartEmoji} \n'
+            placarAtual += f'{userMention}: {entry[1]} {starEmoji} {(currentChatData[numStars] - index)*heartEmoji} \n'
 
     return placarAtual
 
@@ -158,11 +161,19 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
     logger.info("Agendado Rodando")
     with open(f'starCount-{time.strftime("%Y%m%d")}.txt', 'w') as starCount:
         for chatId in context.bot_data[chatIds]:
-            placarAtual = get_placar_markdown(context, chatId)
+            placarAtual = ''
+            try:
+                placarAtual = get_placar_markdown(context, chatId)
+            except error.Unauthorized:
+                logger.error(f'Cannot Get user in chat {chatId}')
+                del context.bot_data[chatIds][chatId]
+                del context.dispatcher.chat_data[chatId]
+                continue
             context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
-            starCount.write(f'Resultado dessa semana no grupo {context.bot.get_chat(chatId).title}')
+            starCount.write(f'Resultado dessa semana no grupo {context.bot.get_chat(chatId).title}\n')
             starCount.write(placarAtual)
-            context.chat_data[dataBase] = {}
+            if chatId in context.dispatcher.chat_data:
+                context.dispatcher.chat_data[chatId][dataBase] = {}
 
 
 def mostra_placar(update: Update, context: CallbackContext) -> None:
