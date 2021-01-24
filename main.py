@@ -40,6 +40,7 @@ heartEmoji = '❤'
 starEmojis = [None] * 5
 starEmoji = '🌟'
 maxStars = 5
+numStars = 'numStars'
 dataBase = 'dataBase'
 chatIds = 'chatIds'
 mainUserId = 'mainUserId'
@@ -88,15 +89,14 @@ def treatRoutine(update, context, thisName, otherName) -> None:
     elif update.message.from_user.id != context.chat_data[mainUserId]\
             and context.chat_data[dadoName]\
             and update.message.from_user.id not in context.chat_data[dictName]\
-            and len(context.chat_data[dictName]) < maxStars:
+            and len(context.chat_data[dictName]) < context.chat_data[numStars]:
         context.chat_data[dictName][update.message.from_user.id] = update.message
-        userStarsIndex = maxStars + 1 - len(context.chat_data[dictName])
+        userStarsIndex = context.chat_data[numStars] + 1 - len(context.chat_data[dictName])
         update.message.reply_text(starEmoji * userStarsIndex, quote=True)
         logger.info(f'{thisName} {userStarsIndex}')
         addStarsToUser(context.chat_data[dataBase], userStarsIndex, update.message.from_user.id)
 
-# Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
+
 def getMainUser(update: Update, context: CallbackContext) -> None:
     if mainUserId in context.chat_data:
         currentUser = update.message.chat.get_member(user_id=context.chat_data[mainUserId]).user
@@ -111,6 +111,8 @@ def start(update: Update, context: CallbackContext) -> int:
     logger.info(f'User {update.message.from_user.first_name} Changing Configuration')
     context.bot_data[chatIds].add(update.message.chat.id)
     context.chat_data[dataBase] = {}
+    memberCount = update.message.chat.get_members_count()
+    context.chat_data[numStars] = memberCount - 1 if memberCount <= maxStars else maxStars
     update.message.reply_text('Olá, Por responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
 
     return SET_USER
@@ -147,7 +149,7 @@ def get_placar_markdown(context, chatId):
         for index, entry in enumerate(orderedItems):
             currentUser = currentChat.get_member(user_id=entry[0]).user
             userMention = mention_markdown(currentUser.id, currentUser.name)
-            placarAtual += f'{userMention}: {entry[1]} {starEmoji} {(maxStars - index)*heartEmoji} \n'
+            placarAtual += f'{userMention}: {entry[1]} {starEmoji} {(context.chat_data[numStars] - index)*heartEmoji} \n'
 
     return placarAtual
 
