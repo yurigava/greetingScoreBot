@@ -5,12 +5,12 @@
 # This program is dedicated to the public domain under the CC0 license.
 
 """
-Simple Bot to reply to Telegram messages.
-First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
+Bot to give a decreasing number of stars to Group members when they answer the greeting of a "main"
+user.
+The stars number for first repondent changes with the number of group members, limited to 5 stars.
+A weekly scoreboard is kept for all users that were given stars.
 Usage:
-Basic Echobot example, repeats messages.
+
 Press Ctrl-C on the command line or send a signal to the process to stop the
 bot.
 """
@@ -24,7 +24,6 @@ import collections
 import re
 import datetime as dtime
 from datetime import datetime
-import time
 import pytz
 from telegram.utils.helpers import mention_markdown
 
@@ -119,7 +118,8 @@ def getMainUser(update: Update, context: CallbackContext) -> None:
         userMention = mention_markdown(currentUser.id, currentUser.name)
         update.message.reply_markdown(f'O usuário principal é {userMention}')
     else:
-        update.message.reply_text('O usuário principal não foi escolhido. Por favor use /start para escolher')
+        update.message.reply_text(
+            'O usuário principal não foi escolhido. Por favor use /start para escolher')
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -128,7 +128,8 @@ def start(update: Update, context: CallbackContext) -> int:
     context.bot_data[chatIds].add(update.message.chat.id)
     if dataBase not in context.chat_data:
         context.chat_data[dataBase] = {}
-    update.message.reply_text('Olá, Por responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
+    update.message.reply_text(
+        'Olá, Por responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
 
     return SET_USER
 
@@ -152,7 +153,8 @@ def skipSetUser(update: Update, context: CallbackContext) -> int:
         mainUser = update.message.chat.get_member(user_id=context.chat_data[mainUserId]).user
         logger.info(f'Usuário {mainUser.full_name} em {update.message.chat.title} cancelou ação')
         userMention = mention_markdown(user_id=mainUser.id, name=mainUser.name)
-        update.message.reply_markdown(f'Ok, Ação cancelada, usuário principal atual é {userMention}')
+        update.message.reply_markdown(
+            f'Ok, Ação cancelada, usuário principal atual é {userMention}')
     else:
         update.message.reply_text(f'Usuário principal não setado.')
 
@@ -170,14 +172,15 @@ def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
             currentUserMember = context.bot.get_chat_member(chat_id=chatId, user_id=entry[0])
             currentUser = currentUserMember.user
             userMention = mention_markdown(currentUser.id, currentUser.name)
-            placarAtual += f'{userMention}: {entry[1]} {starEmoji} {(currentChatData[numStars] - index)*heartEmoji} \n'
+            placarAtual += f'{userMention}: {entry[1]} {starEmoji}' \
+                           f' {(currentChatData[numStars] - index)*heartEmoji} \n'
 
     return placarAtual
 
 
 def mostra_placar_agendado(context: CallbackContext) -> None:
     logger.info("Agendado Rodando")
-    with open(f'starCount-{time.strftime("%Y%m%d")}.txt', 'w') as starCount:
+    with open(f'starCount-{datetime.now().strftime("%Y%m%d")}.txt', 'w') as starCount:
         tempChat = context.bot_data[chatIds].copy()
         for chatId in tempChat:
             placarAtual = ''
@@ -189,7 +192,8 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
                 del context.dispatcher.chat_data[chatId]
                 continue
             context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
-            starCount.write(f'Resultado dessa semana no grupo {context.bot.get_chat(chatId).title}\n')
+            starCount.write(
+                f'Resultado dessa semana no grupo {context.bot.get_chat(chatId).title}\n')
             starCount.write(placarAtual)
             if chatId in context.dispatcher.chat_data:
                 context.dispatcher.chat_data[chatId][dataBase] = {}
@@ -203,14 +207,33 @@ def mostra_placar(update: Update, context: CallbackContext) -> None:
 def bomdia(update: Update, context: CallbackContext) -> None:
     """Treat Bom Dias."""
     if mainUserId not in context.chat_data:
-        logger.info(f"{update.message.from_user.full_name} em {update.message.chat.title} tentando usar bot antes de"
-                    "setar usuário")
-        update.message.reply_text('Usuário principal não foi escolhido. Por favor use /start para escolher.')
+        logger.info(
+            f'{update.message.from_user.full_name} em {update.message.chat.title} tentando usar bot'
+            f' antes de setar usuário')
+        update.message.reply_text(
+            'Usuário principal não foi escolhido. Por favor use /start para escolher.')
     else:
-        logger.info(f"Bom dia de {update.message.from_user.username} em {update.message.chat.title}")
+        logger.info(
+            f'Bom dia de {update.message.from_user.username} em {update.message.chat.title}')
         if isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0)):
             logger.info("Bom dia aceito")
             treatRoutine(update, context, bomDiaName)
+
+
+def boanoite(update: Update, context: CallbackContext) -> None:
+    """Treat Boa Noites."""
+    if mainUserId not in context.chat_data:
+        logger.info(
+            f'{update.message.from_user.full_name} em {update.message.chat.title} tentando usar bot'
+            f' antes de setar usuário')
+        update.message.reply_text(
+            'Usuário principal não foi escolhido. Por favor use /start para escolher.')
+    else:
+        logger.info(
+            f'Boa noite de {update.message.from_user.username} em {update.message.chat.title}')
+        if isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0)):
+            logger.info("Boa noite aceito")
+            treatRoutine(update, context, boaNoiteName)
 
 
 def addStars(chat_data: dict, numOfNewMembers: int) -> bool:
@@ -263,19 +286,6 @@ def zeraGreeting(context: CallbackContext) -> None:
             updateStarCount(context, chatId)
 
 
-def boanoite(update: Update, context: CallbackContext) -> None:
-    """Treat Boa Noites."""
-    if mainUserId not in context.chat_data:
-        logger.info(f"{update.message.from_user.full_name} em {update.message.chat.title} tentando usar bot antes de"
-                    "setar usuário")
-        update.message.reply_text('Usuário principal não foi escolhido. Por favor use /start para escolher.')
-    else:
-        logger.info(f"Boa noite de {update.message.from_user.username} em {update.message.chat.title}")
-        if isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0)):
-            logger.info("Boa noite aceito")
-            treatRoutine(update, context, boaNoiteName)
-
-
 def newChatMembers(update: Update, context: CallbackContext) -> None:
     if bIsBotStarted(context.chat_data):
         numOfNewMembers = getNonBotCount(update.message.new_chat_members)
@@ -312,12 +322,20 @@ def main():
     dispatcher.add_handler(CommandHandler('mostraplacar', mostra_placar))
 
     # on noncommand i.e message - echo the message on Telegram
-    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+m+ ?d+i+a+', re.IGNORECASE))
-                                          & ~Filters.command, bomdia))
-    dispatcher.add_handler(MessageHandler(Filters.regex(re.compile(r'b+o+a+ ?n+o+i+t+e+', re.IGNORECASE))
-                                          & ~Filters.command, boanoite))
-    dispatcher.add_handler(MessageHandler(Filters.status_update.new_chat_members, newChatMembers))
-    dispatcher.add_handler(MessageHandler(Filters.status_update.left_chat_member, userLeft))
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.regex(
+                re.compile(r'b+o+m+ ?d+i+a+', re.IGNORECASE)) & ~Filters.command, bomdia))
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.regex(
+                re.compile(r'b+o+a+ ?n+o+i+t+e+', re.IGNORECASE)) & ~Filters.command, boanoite))
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.status_update.new_chat_members, newChatMembers))
+    dispatcher.add_handler(
+        MessageHandler(
+            Filters.status_update.left_chat_member, userLeft))
 
     dispatcher.add_handler(CommandHandler('usuarioprincipal', getMainUser))
     conv_handler = ConversationHandler(
@@ -332,13 +350,16 @@ def main():
     )
 
     dispatcher.add_handler(conv_handler)
-    updater.job_queue.run_daily(mostra_placar_agendado, dtime.time(13, 00, 00,
-                                                                   tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
-    updater.job_queue.run_daily(zeraGreeting, dtime.time(12, 1, 00,
-                                                         tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
-    updater.job_queue.run_daily(zeraGreeting, dtime.time(4, 1, 00,
-                                                         tzinfo=pytz.timezone('America/Sao_Paulo')),
-                                context=boaNoiteName)
+
+    updater.job_queue.run_daily(
+        mostra_placar_agendado,
+        dtime.time(13, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
+    updater.job_queue.run_daily(
+        zeraGreeting,
+        dtime.time(12, 1, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
+    updater.job_queue.run_daily(
+        zeraGreeting,
+        dtime.time(4, 1, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=boaNoiteName)
     # Start the Bot
     updater.start_polling()
 
