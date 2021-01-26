@@ -205,23 +205,18 @@ def mostra_placar(update: Update, context: CallbackContext) -> None:
 
 
 def bomdia(update: Update, context: CallbackContext) -> None:
-    """Treat Bom Dias."""
-    if mainUserId not in context.chat_data:
-        logger.info(
-            f'{update.message.from_user.full_name} em {update.message.chat.title} tentando usar bot'
-            f' antes de setar usuário')
-        update.message.reply_text(
-            'Usuário principal não foi escolhido. Por favor use /start para escolher.')
-    else:
-        logger.info(
-            f'Bom dia de {update.message.from_user.username} em {update.message.chat.title}')
-        if isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0)):
-            logger.info("Bom dia aceito")
-            treatRoutine(update, context, bomDiaName)
+    """Treat Bons Dias."""
+    isTimeInRange = isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0))
+    treatGreeting(update, context, bomDiaName, isTimeInRange)
 
 
 def boanoite(update: Update, context: CallbackContext) -> None:
-    """Treat Boa Noites."""
+    """Treat Boas Noites."""
+    isTimeInRange = isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0))
+    treatGreeting(update, context, boaNoiteName, isTimeInRange)
+
+
+def treatGreeting(update: Update, context: CallbackContext, name: str, isTimeInRange: bool) -> None:
     if mainUserId not in context.chat_data:
         logger.info(
             f'{update.message.from_user.full_name} em {update.message.chat.title} tentando usar bot'
@@ -231,9 +226,9 @@ def boanoite(update: Update, context: CallbackContext) -> None:
     else:
         logger.info(
             f'Boa noite de {update.message.from_user.username} em {update.message.chat.title}')
-        if isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0)):
+        if isTimeInRange:
             logger.info("Boa noite aceito")
-            treatRoutine(update, context, boaNoiteName)
+            treatRoutine(update, context, name)
 
 
 def addStars(chat_data: dict, numOfNewMembers: int) -> bool:
