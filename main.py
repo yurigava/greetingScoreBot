@@ -139,9 +139,9 @@ def setMainUser(update: Update, context: CallbackContext) -> int:
     logger.info(f'Setando usuário {userReplied.full_name} como usuário principal.')
     update.message.reply_markdown(f'Setando usuário {userMention} como usuário principal.')
     context.chat_data[mainUserId] = userReplied.id
-    memberCount = getNonBotCount(update.message.new_chat_members)
+    memberCount = update.message.chat.get_members_count()
     logger.info(f'Initial Member count in "{update.message.chat.title}" is {memberCount}')
-    context.chat_data[numStars] = memberCount - 1 if memberCount <= maxStars else maxStars
+    context.chat_data[numStars] = memberCount - 2 if memberCount <= maxStars else maxStars
     context.chat_data[usersBalance] = 0
 
     return ConversationHandler.END
@@ -178,13 +178,14 @@ def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
 def mostra_placar_agendado(context: CallbackContext) -> None:
     logger.info("Agendado Rodando")
     with open(f'starCount-{time.strftime("%Y%m%d")}.txt', 'w') as starCount:
-        for chatId in context.bot_data[chatIds]:
+        tempChat = context.bot_data[chatIds].copy()
+        for chatId in tempChat:
             placarAtual = ''
             try:
                 placarAtual = get_placar_markdown(context, chatId)
             except error.Unauthorized:
                 logger.error(f'Cannot Get user in chat {chatId}')
-                del context.bot_data[chatIds][chatId]
+                context.bot_data[chatIds].remove(chatId)
                 del context.dispatcher.chat_data[chatId]
                 continue
             context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
@@ -222,14 +223,11 @@ def addStars(chat_data: dict, numOfNewMembers: int) -> bool:
     return bChanged
 
 
-def removeStars(chat_data: dict, numOfNewMembers: int) -> bool:
-    bChanged = False
-    if chat_data[numStars] > minStars:
-        chat_data[numStars] -= numOfNewMembers
-        chat_data[numStars] = minStars if chat_data[numStars] < minStars else chat_data[numStars]
-        bChanged = True
+def removeStars(chat_data: dict, numOfRemovedMembers: int) -> bool:
+    chat_data[numStars] -= numOfRemovedMembers
+    chat_data[numStars] = minStars if chat_data[numStars] < 0 else chat_data[numStars]
 
-    return bChanged
+    return True
 
 
 def sendMembersChangedMessage(context: CallbackContext, chatId, newStarsNum):
@@ -239,7 +237,7 @@ def sendMembersChangedMessage(context: CallbackContext, chatId, newStarsNum):
                                  f' Nova quantidade máxima de {starEmoji}s é {newStarsNum}')
     except error.Unauthorized:
         logger.error(f'Cannot Get user in chat {chatId}')
-        del context.bot_data[chatIds][chatId]
+        context.bot_data[chatIds].remove(chatId)
         del context.dispatcher.chat_data[chatId]
 
 
@@ -254,12 +252,13 @@ def updateStarCount(context: CallbackContext, chatId):
 
 
 def zeraGreeting(context: CallbackContext) -> None:
-    for chatId in context.bot_data[chatIds]:
+    tempSet = context.bot_data[chatIds].copy()
+    for chatId in tempSet:
         currentChatData = context.dispatcher.chat_data[chatId]
         otherDictName = f'{context.job.context}Dict'
         otherDadoName = f'{context.job.context}Dado'
         currentChatData[otherDictName] = collections.OrderedDict()
-        currentChatData.chat_data[otherDadoName] = False
+        currentChatData[otherDadoName] = False
         if bIsBotStarted(currentChatData):
             updateStarCount(context, chatId)
 
