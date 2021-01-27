@@ -267,6 +267,8 @@ def editStarMessages(context: CallbackContext, newMemberCount: int):
     for index, key in enumerate(context.chat_data[f'{dictKeyName}Dict']):
         newUserStarsCount = context.chat_data[numStars] - index
         context.chat_data[f'{dictKeyName}Dict'][key].edit_text(newUserStarsCount * starEmoji)
+        deltaStars = newUserStarsCount - context.chat_data[numStars]
+        context.chat_data[dataBase][key] += deltaStars
 
 
 def treatMemberNumChange(context: CallbackContext, memberCount: int, chatId: int) -> None:
