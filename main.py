@@ -258,23 +258,27 @@ def sendMembersChangedMessage(context: CallbackContext, chatId, newStarsNum):
         removeChat(context, chatId)
 
 
-def editStarMessages(context: CallbackContext, newMemberCount: int):
+def editStarMessages(context: CallbackContext, oldStarNumber: int):
     dictKeyName = ''
     if context.chat_data[f'{boaNoiteName}Dado']:
         dictKeyName = boaNoiteName
     elif context.chat_data[f'{bomDiaName}Dado']:
         dictKeyName = bomDiaName
-    for index, key in enumerate(context.chat_data[f'{dictKeyName}Dict']):
-        newUserStarsCount = context.chat_data[numStars] - index
-        context.chat_data[f'{dictKeyName}Dict'][key].edit_text(newUserStarsCount * starEmoji)
-        deltaStars = newUserStarsCount - context.chat_data[numStars]
-        context.chat_data[dataBase][key] += deltaStars
+    deltaStars = context.chat_data[numStars] - oldStarNumber
+    #Do not remove stars if all stars given
+    if not (deltaStars < 0
+            and len(context.chat_data[f'{dictKeyName}Dict']) == oldStarNumber):
+        for index, key in enumerate(context.chat_data[f'{dictKeyName}Dict']):
+            newUserStarsCount = context.chat_data[numStars] - index
+            context.chat_data[f'{dictKeyName}Dict'][key].edit_text(newUserStarsCount * starEmoji)
+            context.chat_data[dataBase][key] += deltaStars
 
 
 def treatMemberNumChange(context: CallbackContext, memberCount: int, chatId: int) -> None:
+    oldStarNum = context.chat_data[numStars]
     setStarsNumber(context.chat_data, memberCount)
     if bIsGreetingGiven(context.chat_data) and isGreetingReplied(context.chat_data):
-        editStarMessages(context, memberCount)
+        editStarMessages(context, oldStarNum)
     sendMembersChangedMessage(context, chatId, context.chat_data[numStars])
 
 
