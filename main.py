@@ -49,7 +49,6 @@ chatIds = 'chatIds'
 mainUserId = 'mainUserId'
 boaNoiteName = 'boanoite'
 bomDiaName = 'bomdia'
-usersBalance = 'usersBalance'
 
 SET_USER, CANCEL = range(2)
 
@@ -85,8 +84,15 @@ def bIsGreetingGiven(chat_data: dict) -> bool:
     return any(key in chat_data and chat_data[key] for key in dadoNames)
 
 
-def getNonBotCount(users: List[User]) -> int:
-    return len([member for member in users if not member.is_bot])
+def isGreetingReplied(chat_data: dict) -> bool:
+    return len(chat_data[f'{boaNoiteName}Dict']) > 0\
+            or len(chat_data[f'{bomDiaName}Dict']) > 0
+
+
+def removeChat(context: CallbackContext, chatId: int) -> None:
+    logger.error(f'Cannot Get user in chat {chatId}')
+    context.bot_data[chatIds].remove(chatId)
+    del context.dispatcher.chat_data[chatId]
 
 
 def treatRoutine(update, context, thisName) -> None:
@@ -105,21 +111,12 @@ def treatRoutine(update, context, thisName) -> None:
             and context.chat_data[dadoName]\
             and update.message.from_user.id not in context.chat_data[dictName]\
             and len(context.chat_data[dictName]) < context.chat_data[numStars]:
-        context.chat_data[dictName][update.message.from_user.id] = update.message
-        userStarsIndex = context.chat_data[numStars] + 1 - len(context.chat_data[dictName])
-        update.message.reply_text(starEmoji * userStarsIndex, quote=True)
+        userStarsIndex = context.chat_data[numStars] - len(context.chat_data[dictName])
+        userStarsIndex = min(userStarsIndex, maxStars)
+        context.chat_data[dictName][update.message.from_user.id] = update.message.reply_text(
+                starEmoji * userStarsIndex, quote=True)
         logger.info(f'{thisName} {userStarsIndex}')
         addStarsToUser(context.chat_data[dataBase], userStarsIndex, update.message.from_user.id)
-
-
-def getMainUser(update: Update, context: CallbackContext) -> None:
-    if bIsBotStarted(context.chat_data):
-        currentUser = update.message.chat.get_member(user_id=context.chat_data[mainUserId]).user
-        userMention = mention_markdown(currentUser.id, currentUser.name)
-        update.message.reply_markdown(f'O usuário principal é {userMention}')
-    else:
-        update.message.reply_text(
-            'O usuário principal não foi escolhido. Por favor use /start para escolher')
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -134,6 +131,20 @@ def start(update: Update, context: CallbackContext) -> int:
     return SET_USER
 
 
+def getMainUser(update: Update, context: CallbackContext) -> None:
+    if bIsBotStarted(context.chat_data):
+        currentUser = update.message.chat.get_member(user_id=context.chat_data[mainUserId]).user
+        userMention = mention_markdown(currentUser.id, currentUser.name)
+        update.message.reply_markdown(f'O usuário principal é {userMention}')
+    else:
+        update.message.reply_text(
+            'O usuário principal não foi escolhido. Por favor use /start para escolher')
+
+
+def setStarsNumber(chatData: dict, memberCount: int) -> None:
+    chatData[numStars] = min(memberCount - 2, maxStars)
+
+
 def setMainUser(update: Update, context: CallbackContext) -> int:
     userReplied = update.message.reply_to_message.from_user
     userMention = mention_markdown(user_id=userReplied.id, name=userReplied.name)
@@ -142,8 +153,7 @@ def setMainUser(update: Update, context: CallbackContext) -> int:
     context.chat_data[mainUserId] = userReplied.id
     memberCount = update.message.chat.get_members_count()
     logger.info(f'Initial Member count in "{update.message.chat.title}" is {memberCount}')
-    context.chat_data[numStars] = memberCount - 2 if memberCount <= maxStars else maxStars
-    context.chat_data[usersBalance] = 0
+    setStarsNumber(context.chat_data, memberCount)
 
     return ConversationHandler.END
 
@@ -187,9 +197,7 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
             try:
                 placarAtual = get_placar_markdown(context, chatId)
             except error.Unauthorized:
-                logger.error(f'Cannot Get user in chat {chatId}')
-                context.bot_data[chatIds].remove(chatId)
-                del context.dispatcher.chat_data[chatId]
+                removeChat(context, chatId)
                 continue
             context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
             starCount.write(
@@ -199,6 +207,16 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
                 context.dispatcher.chat_data[chatId][dataBase] = {}
 
 
+def zeraGreeting(context: CallbackContext) -> None:
+    tempSet = context.bot_data[chatIds].copy()
+    for chatId in tempSet:
+        currentChatData = context.dispatcher.chat_data[chatId]
+        dictName = f'{context.job.context}Dict'
+        dadoName = f'{context.job.context}Dado'
+        currentChatData[dictName] = collections.OrderedDict()
+        currentChatData[dadoName] = False
+
+
 def mostra_placar(update: Update, context: CallbackContext) -> None:
     placarAtual = get_placar_markdown(context, update.message.chat.id)
     update.message.reply_markdown(placarAtual)
@@ -206,13 +224,13 @@ def mostra_placar(update: Update, context: CallbackContext) -> None:
 
 def bomdia(update: Update, context: CallbackContext) -> None:
     """Treat Bons Dias."""
-    isTimeInRange = isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(12, 0, 0))
+    isTimeInRange = isCurrentTimeInRange(dtime.time(5, 0, 0), dtime.time(11, 59, 59))
     treatGreeting(update, context, bomDiaName, isTimeInRange)
 
 
 def boanoite(update: Update, context: CallbackContext) -> None:
     """Treat Boas Noites."""
-    isTimeInRange = isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(4, 0, 0))
+    isTimeInRange = isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(3, 59, 59))
     treatGreeting(update, context, boaNoiteName, isTimeInRange)
 
 
@@ -225,27 +243,10 @@ def treatGreeting(update: Update, context: CallbackContext, name: str, isTimeInR
             'Usuário principal não foi escolhido. Por favor use /start para escolher.')
     else:
         logger.info(
-            f'Boa noite de {update.message.from_user.username} em {update.message.chat.title}')
+            f'Saudação de {update.message.from_user.username} em {update.message.chat.title}')
         if isTimeInRange:
             logger.info("Boa noite aceito")
             treatRoutine(update, context, name)
-
-
-def addStars(chat_data: dict, numOfNewMembers: int) -> bool:
-    bChanged = False
-    if chat_data[numStars] < maxStars:
-        chat_data[numStars] += numOfNewMembers
-        chat_data[numStars] = maxStars if chat_data[numStars] > maxStars else chat_data[numStars]
-        bChanged = True
-
-    return bChanged
-
-
-def removeStars(chat_data: dict, numOfRemovedMembers: int) -> bool:
-    chat_data[numStars] -= numOfRemovedMembers
-    chat_data[numStars] = minStars if chat_data[numStars] < 0 else chat_data[numStars]
-
-    return True
 
 
 def sendMembersChangedMessage(context: CallbackContext, chatId, newStarsNum):
@@ -254,50 +255,42 @@ def sendMembersChangedMessage(context: CallbackContext, chatId, newStarsNum):
                                  f'Número de Participantes alterado.'
                                  f' Nova quantidade máxima de {starEmoji}s é {newStarsNum}')
     except error.Unauthorized:
-        logger.error(f'Cannot Get user in chat {chatId}')
-        context.bot_data[chatIds].remove(chatId)
-        del context.dispatcher.chat_data[chatId]
+        removeChat(context, chatId)
 
 
-def updateStarCount(context: CallbackContext, chatId):
-    currentChatData = context.dispatcher.chat_data[chatId]
-    if currentChatData[usersBalance] < 0:
-        if removeStars(currentChatData, currentChatData[usersBalance] * -1):
-            sendMembersChangedMessage(context, chatId, currentChatData[numStars])
-    elif currentChatData[usersBalance] > 0:
-        if addStars(currentChatData, currentChatData[usersBalance]):
-            sendMembersChangedMessage(context, chatId, currentChatData[numStars])
+def editStarMessages(context: CallbackContext, newMemberCount: int):
+    dictKeyName = ''
+    if context.chat_data[f'{boaNoiteName}Dado']:
+        dictKeyName = boaNoiteName
+    elif context.chat_data[f'{bomDiaName}Dado']:
+        dictKeyName = bomDiaName
+    for index, key in enumerate(context.chat_data[f'{dictKeyName}Dict']):
+        newUserStarsCount = context.chat_data[numStars] - index
+        context.chat_data[f'{dictKeyName}Dict'][key].edit_text(newUserStarsCount * starEmoji)
 
 
-def zeraGreeting(context: CallbackContext) -> None:
-    tempSet = context.bot_data[chatIds].copy()
-    for chatId in tempSet:
-        currentChatData = context.dispatcher.chat_data[chatId]
-        otherDictName = f'{context.job.context}Dict'
-        otherDadoName = f'{context.job.context}Dado'
-        currentChatData[otherDictName] = collections.OrderedDict()
-        currentChatData[otherDadoName] = False
-        if bIsBotStarted(currentChatData):
-            updateStarCount(context, chatId)
+def treatMemberNumChange(context: CallbackContext, memberCount: int, chatId: int) -> None:
+    setStarsNumber(context.chat_data, memberCount)
+    if bIsGreetingGiven(context.chat_data) and isGreetingReplied(context.chat_data):
+        editStarMessages(context, memberCount)
+    sendMembersChangedMessage(context, chatId, context.chat_data[numStars])
 
 
 def newChatMembers(update: Update, context: CallbackContext) -> None:
-    if bIsBotStarted(context.chat_data):
-        numOfNewMembers = getNonBotCount(update.message.new_chat_members)
-        if bIsGreetingGiven(context.chat_data) and len(context.chat_data[dataBase]) > 0:
-            logger.info(f'{numOfNewMembers} New chat Member(s) in {update.message.chat.title}')
-            context.chat_data[usersBalance] += numOfNewMembers
-        elif addStars(context.chat_data, numOfNewMembers):
-            sendMembersChangedMessage(context, update.message.chat.id, context.chat_data[numStars])
+    memberCount = update.message.chat.get_members_count()
+    logger.info(f'New chat Member(s) in {update.message.chat.title}')
+    if bIsBotStarted(context.chat_data) and context.chat_data[numStars] < 5:
+        treatMemberNumChange(context, memberCount, update.message.chat.id)
 
 
 def userLeft(update: Update, context: CallbackContext) -> None:
-    if bIsBotStarted(context.chat_data):
-        if bIsGreetingGiven(context.chat_data) and len(context.chat_data[dataBase]) > 0:
-            logger.info(f'Chat Member Left in {update.message.chat.title}')
-            context.chat_data[usersBalance] -= 1
-        elif removeStars(context.chat_data, 1):
-            sendMembersChangedMessage(context, update.message.chat.id, context.chat_data[numStars])
+    try:
+        logger.info(f'Chat Member Left in {update.message.chat.title}')
+        memberCount = update.message.chat.get_members_count()
+        if bIsBotStarted(context.chat_data) and memberCount <= maxStars + 2:
+            treatMemberNumChange(context, memberCount, update.message.chat.id)
+    except error.Unauthorized:
+        removeChat(context, update.message.chat.id)
 
 
 def main():
@@ -351,10 +344,10 @@ def main():
         dtime.time(13, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
     updater.job_queue.run_daily(
         zeraGreeting,
-        dtime.time(12, 1, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
+        dtime.time(12, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
     updater.job_queue.run_daily(
         zeraGreeting,
-        dtime.time(4, 1, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=boaNoiteName)
+        dtime.time(4, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=boaNoiteName)
     # Start the Bot
     updater.start_polling()
 
