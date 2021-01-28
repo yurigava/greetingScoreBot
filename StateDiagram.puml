@@ -1,0 +1,41 @@
+@startuml
+'https://plantuml.com/state-diagram
+
+[*] --> UnConfigured
+
+UnConfigured --> WaitStartReply : /start
+WaitStartReply --> WaitGreeting : Message with\nreply to user
+WaitStartReply --> WaitStartReply : /skip and No\nUser Set
+WaitStartReply --> WaitGreeting : /skip and\nUser Set
+
+WaitGreeting --> InvalidTimes : Time out\nof Range
+MainUserGreeted -> InvalidTimes : Time out\nof Range
+AnyPlayerGreeted --> InvalidTimes : Time out\nof Range
+InvalidTimes --> WaitGreeting : Time in Range
+WaitGreeting --> MainUserGreeted : Greeting given\nby main User
+state MainUserGreeted {
+    Normal : Reply stars
+    Normal : in order
+    [*] -> Normal
+    Normal -> AnyPlayerGreeted : Player replied
+    Normal --> RecalculateTotalStars : User\nleft/entered
+    RecalculateTotalStars --> Normal : Stars and\nscore changed
+    RecalculateTotalStars : Change First reply stars number
+}
+
+state AnyPlayerGreeted {
+    [*] -> PlayerGreetNormal
+    PlayerGreetNormal --> RedactStarHistory : User\nleft/entered
+    RedactStarHistory : Edit Given stars
+    RedactStarHistory : Change First reply stars number
+
+}
+
+state InvalidTimes {
+    [*] --> Idle
+    Idle --> ChangeStarTotal : User\nleft/entered
+    ChangeStarTotal --> Idle : Stars Total\nChanged
+    ChangeStarTotal : Only change if 1 <= Playing Users >= maxStars
+}
+
+@enduml
