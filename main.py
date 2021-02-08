@@ -196,15 +196,27 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
             placarAtual = ''
             try:
                 placarAtual = get_placar_markdown(context, chatId)
+                context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
+                starCount.write(
+                    f'Resultado dessa semana no grupo {context.bot.get_chat(chatId).title}\n')
+                starCount.write(placarAtual)
+                if chatId in context.dispatcher.chat_data:
+                    context.dispatcher.chat_data[chatId][dataBase] = {}
             except error.Unauthorized:
-                removeChat(context, chatId)
-                continue
-            context.bot.send_message(chatId, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
-            starCount.write(
-                f'Resultado dessa semana no grupo {context.bot.get_chat(chatId).title}\n')
-            starCount.write(placarAtual)
-            if chatId in context.dispatcher.chat_data:
-                context.dispatcher.chat_data[chatId][dataBase] = {}
+                logger.error(f'Cannot Get user in chat {chatId}')
+                context.bot_data[chatIds].remove(chatId)
+                del context.dispatcher.chat_data[chatId]
+            except error.ChatMigrated as ex:
+                context.dispatcher.chat_data[ex.new_chat_id] = context.dispatcher.chat_data[chatId]
+                context.bot_data[chatIds].add(ex.new_chat_id)
+                context.bot_data[chatIds].remove(chatId)
+                del context.dispatcher.chat_data[chatId]
+                context.bot.send_message(ex.new_chat_id, placarAtual, parse_mode=constants.PARSEMODE_MARKDOWN)
+                starCount.write(
+                    f'Resultado dessa semana no grupo {context.bot.get_chat(ex.new_chat_id).title}\n')
+                starCount.write(placarAtual)
+                if ex.new_chat_id in context.dispatcher.chat_data:
+                    context.dispatcher.chat_data[ex.new_chat_id][dataBase] = {}
 
 
 def zeraGreeting(context: CallbackContext) -> None:
