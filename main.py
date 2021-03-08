@@ -179,11 +179,14 @@ def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
         placarAtual = 'O placar atual é:\n'
         orderedItems = sorted(currentChatData[dataBase].items(), key=lambda x: x[1], reverse=True)
         for index, entry in enumerate(orderedItems):
-            currentUserMember = context.bot.get_chat_member(chat_id=chatId, user_id=entry[0])
-            currentUser = currentUserMember.user
-            userMention = mention_markdown(currentUser.id, currentUser.name)
-            placarAtual += f'{userMention}: {entry[1]} {starEmoji}' \
-                           f' {(currentChatData[numStars] - index)*heartEmoji} \n'
+            try:
+                currentUserMember = context.bot.get_chat_member(chat_id=chatId, user_id=entry[0])
+                currentUser = currentUserMember.user
+                userMention = mention_markdown(currentUser.id, currentUser.name)
+                placarAtual += f'{userMention}: {entry[1]} {starEmoji}' \
+                               f' {(currentChatData[numStars] - index)*heartEmoji} \n'
+            except error.BadRequest:
+                logger.info("Failed getting user with ID " + entry[0])
 
     return placarAtual
 
