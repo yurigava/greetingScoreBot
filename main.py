@@ -175,6 +175,14 @@ def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
     """Send a message when the command /help is issued."""
     placarAtual = ''
     currentChatData = context.dispatcher.chat_data[chatId]
+    #currentChatData[dataBase] = {
+    #                @yurigava: 42,
+    #                @GenusFarinha : 42,
+    #                @GuizinMassage : 30,
+    #                @durdo_one: 16,
+    #                Hugo: 15,
+    #                @JohnVHSoares : 11
+    #}
     if dataBase in currentChatData:
         placarAtual = 'O placar atual é:\n'
         orderedItems = sorted(currentChatData[dataBase].items(), key=lambda x: x[1], reverse=True)
