@@ -255,7 +255,7 @@ def bomdia(update: Update, context: CallbackContext) -> None:
 def boatarde(update: Update, context: CallbackContext) -> None:
     """Treat Boas Tardes."""
     isTimeInRange = isCurrentTimeInRange(dtime.time(14, 0, 0), dtime.time(17, 29, 59))
-    treatGreeting(update, context, bomTardeName, isTimeInRange)
+    treatGreeting(update, context, boaTardeName, isTimeInRange)
 
 
 def boanoite(update: Update, context: CallbackContext) -> None:
@@ -387,7 +387,7 @@ def main():
         dtime.time(12, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
     updater.job_queue.run_daily(
         zeraGreeting,
-        dtime.time(18, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomTardeName)
+        dtime.time(18, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=boaTardeName)
     updater.job_queue.run_daily(
         zeraGreeting,
         dtime.time(4, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=boaNoiteName)
