@@ -49,6 +49,7 @@ chatIds = 'chatIds'
 mainUserId = 'mainUserId'
 boaNoiteName = 'boanoite'
 bomDiaName = 'bomdia'
+boaTardeName = 'boatarde'
 
 SET_USER, CANCEL = range(2)
 
@@ -126,7 +127,7 @@ def start(update: Update, context: CallbackContext) -> int:
     if dataBase not in context.chat_data:
         context.chat_data[dataBase] = {}
     update.message.reply_text(
-        'Olá, Por responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
+        'Olá, Por favor responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
 
     return SET_USER
 
@@ -251,6 +252,12 @@ def bomdia(update: Update, context: CallbackContext) -> None:
     treatGreeting(update, context, bomDiaName, isTimeInRange)
 
 
+def boatarde(update: Update, context: CallbackContext) -> None:
+    """Treat Boas Tardes."""
+    isTimeInRange = isCurrentTimeInRange(dtime.time(14, 0, 0), dtime.time(17, 29, 59))
+    treatGreeting(update, context, bomTardeName, isTimeInRange)
+
+
 def boanoite(update: Update, context: CallbackContext) -> None:
     """Treat Boas Noites."""
     isTimeInRange = isCurrentTimeInRange(dtime.time(18, 30, 0), dtime.time(3, 59, 59))
@@ -268,7 +275,7 @@ def treatGreeting(update: Update, context: CallbackContext, name: str, isTimeInR
         logger.info(
             f'Saudação de {update.message.from_user.username} em {update.message.chat.title}')
         if isTimeInRange:
-            logger.info("Boa noite aceito")
+            logger.info("Saudação aceita")
             treatRoutine(update, context, name)
 
 
@@ -349,6 +356,10 @@ def main():
                 re.compile(r'b+o+a+ ?n+o+i+t+e+', re.IGNORECASE)) & ~Filters.command, boanoite))
     dispatcher.add_handler(
         MessageHandler(
+            Filters.regex(
+                re.compile(r'b+o+a+ ?t+a+r+d+e+', re.IGNORECASE)) & ~Filters.command, boatarde))
+    dispatcher.add_handler(
+        MessageHandler(
             Filters.status_update.new_chat_members, newChatMembers))
     dispatcher.add_handler(
         MessageHandler(
@@ -374,6 +385,9 @@ def main():
     updater.job_queue.run_daily(
         zeraGreeting,
         dtime.time(12, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
+    updater.job_queue.run_daily(
+        zeraGreeting,
+        dtime.time(18, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomTardeName)
     updater.job_queue.run_daily(
         zeraGreeting,
         dtime.time(4, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=boaNoiteName)
