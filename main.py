@@ -39,7 +39,6 @@ from telegram.ext import (
 )
 
 heartEmoji = '❤'
-starEmojis = [None] * 5
 starEmoji = '🌟'
 maxStars = 5
 minStars = 2
@@ -50,6 +49,7 @@ mainUserId = 'mainUserId'
 boaNoiteName = 'boanoite'
 bomDiaName = 'bomdia'
 boaTardeName = 'boatarde'
+heartsCount = 'heartsCount'
 
 SET_USER, CANCEL = range(2)
 
@@ -69,11 +69,16 @@ def isCurrentTimeInRange(startTime, end):
         return startTime <= currentTime or currentTime <= end
 
 
-def addStarsToUser(starCountDictionary, starsNumber, user):
+def addStarsToUser(starCountDictionary, heartsCountDictionary, starsNumber, user):
     if user in starCountDictionary:
         starCountDictionary[user] += starsNumber
     else:
         starCountDictionary[user] = starsNumber
+
+    if user in heartsCountDictionary:
+        heartsCountDictionary[user] += maxStars + 1 - starsNumber
+    else:
+        heartsCountDictionary[user] = maxStars + 1 - starsNumber
 
 
 def bIsBotStarted(chat_data: dict) -> bool:
@@ -117,7 +122,8 @@ def treatRoutine(update, context, thisName) -> None:
         context.chat_data[dictName][update.message.from_user.id] = update.message.reply_text(
                 starEmoji * userStarsIndex, quote=True)
         logger.info(f'{thisName} {userStarsIndex}')
-        addStarsToUser(context.chat_data[dataBase], userStarsIndex, update.message.from_user.id)
+        addStarsToUser(context.chat_data[dataBase], context.chat_data[heartsCount],
+                       userStarsIndex, update.message.from_user.id)
 
 
 def start(update: Update, context: CallbackContext) -> int:
@@ -126,6 +132,8 @@ def start(update: Update, context: CallbackContext) -> int:
     context.bot_data[chatIds].add(update.message.chat.id)
     if dataBase not in context.chat_data:
         context.chat_data[dataBase] = {}
+    if heartsCount not in context.chat_data:
+        context.chat_data[heartsCount] = {}
     update.message.reply_text(
         'Olá, Por favor responda uma mensagem do usuário que iniciará o Bom dia para esse chat.')
 
@@ -177,12 +185,16 @@ def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
     placarAtual = ''
     currentChatData = context.dispatcher.chat_data[chatId]
     #currentChatData[dataBase] = {
-    #                @yurigava: 42,
-    #                @GenusFarinha : 42,
-    #                @GuizinMassage : 30,
-    #                @durdo_one: 16,
-    #                Hugo: 15,
-    #                @JohnVHSoares : 11
+    #                159390840: 8,
+    #                137659683: 7,
+    #                146709587: 6,
+    #                1516365470: 5
+    #}
+    #currentChatData[heartsCount] = {
+    #                159390840: 1,
+    #                137659683: 2,
+    #                146709587: 3,
+    #                1516365470: 4
     #}
     if dataBase in currentChatData:
         placarAtual = 'O placar atual é:\n'
@@ -192,8 +204,19 @@ def get_placar_markdown(context: CallbackContext, chatId: int) -> str:
                 currentUserMember = context.bot.get_chat_member(chat_id=chatId, user_id=entry[0])
                 currentUser = currentUserMember.user
                 userMention = mention_markdown(currentUser.id, currentUser.name)
-                placarAtual += f'{userMention}: {entry[1]} {starEmoji}' \
-                               f' {(currentChatData[numStars] - index)*heartEmoji} \n'
+                placarAtual += f'{userMention}: {entry[1]} {starEmoji}\n'
+            except error.BadRequest:
+                logger.info("Failed getting user with ID " + entry[0])
+
+    if heartsCount in currentChatData:
+        placarAtual += '\nO placar invertido é:\n'
+        orderedItems = sorted(currentChatData[heartsCount].items(), key=lambda x: x[1], reverse=True)
+        for index, entry in enumerate(orderedItems):
+            try:
+                currentUserMember = context.bot.get_chat_member(chat_id=chatId, user_id=entry[0])
+                currentUser = currentUserMember.user
+                userMention = mention_markdown(currentUser.id, currentUser.name)
+                placarAtual += f'{userMention}: {entry[1]} {heartEmoji}\n'
             except error.BadRequest:
                 logger.info("Failed getting user with ID " + entry[0])
 
@@ -214,6 +237,7 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
                 starCount.write(placarAtual)
                 if chatId in context.dispatcher.chat_data:
                     context.dispatcher.chat_data[chatId][dataBase] = {}
+                    context.dispatcher.chat_data[chatId][heartsCount] = {}
             except error.Unauthorized:
                 logger.error(f'Cannot Get user in chat {chatId}')
                 context.bot_data[chatIds].remove(chatId)
@@ -229,6 +253,7 @@ def mostra_placar_agendado(context: CallbackContext) -> None:
                 starCount.write(placarAtual)
                 if ex.new_chat_id in context.dispatcher.chat_data:
                     context.dispatcher.chat_data[ex.new_chat_id][dataBase] = {}
+                    context.dispatcher.chat_data[ex.new_chat_id][heartsCount] = {}
 
 
 def zeraGreeting(context: CallbackContext) -> None:
@@ -381,7 +406,7 @@ def main():
 
     updater.job_queue.run_daily(
         mostra_placar_agendado,
-        dtime.time(13, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
+        dtime.time(13, 0, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), [6])
     updater.job_queue.run_daily(
         zeraGreeting,
         dtime.time(12, 00, 00, tzinfo=pytz.timezone('America/Sao_Paulo')), context=bomDiaName)
